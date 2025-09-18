@@ -7,6 +7,9 @@ interface PodcastPreviewProps {
   onReset: () => void;
 }
 
+// Let TypeScript know that JSZip is available on the global scope
+declare const JSZip: any;
+
 const generateHTML = (data: PodcastData): string => {
   return `
     <!DOCTYPE html>
@@ -45,13 +48,30 @@ const generateHTML = (data: PodcastData): string => {
 };
 
 const PodcastPreview: React.FC<PodcastPreviewProps> = ({ data, onReset }) => {
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (typeof JSZip === 'undefined') {
+        console.error("JSZip is not loaded.");
+        alert("다운로드 라이브러리를 로드하는 데 실패했습니다. 페이지를 새로고침하고 다시 시도해 주세요.");
+        return;
+    }
+
     const htmlContent = generateHTML(data);
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
+    const zip = new JSZip();
+    
+    // Create a folder and add the file
+    const folder = zip.folder("podcast");
+    if (folder) {
+      folder.file(`팟캐스트_${data.creationDate.replace(/[^0-9]/g, '')}.html`, htmlContent);
+    }
+    
+    // Generate the zip file
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+    // Trigger download
+    const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `팟캐스트_${data.creationDate.replace(/[^0-9]/g, '')}.html`;
+    a.download = 'podcast.zip';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -60,8 +80,7 @@ const PodcastPreview: React.FC<PodcastPreviewProps> = ({ data, onReset }) => {
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">팟캐스트 페이지가 준비되었습니다!</h2>
+        <div className="flex justify-end items-center mb-6">
              <div className="flex gap-4">
                  <button
                     onClick={onReset}
